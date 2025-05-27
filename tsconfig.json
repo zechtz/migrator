@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "baseUrl": "./src",
+    "paths": {
+      "types": ["./types/index"],
+      "types/*": ["./types/*"],
+      "config": ["./config/index"],
+      "config/*": ["./config/*"],
+      "utils/*": ["./utils/*"],
+      "database/*": ["./database/*"],
+      "data/*": ["./data/*"],
+      "migration/*": ["./migration/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "ts-node": {
+    "esm": true
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "migrator",
+  "version": "1.0.0",
+  "description": "Oracle to PostgreSQL data migration tool (TypeScript)",
+  "main": "migration.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/migration.js",
+    "dev": "ts-node migration.ts",
+    "migrate": "npm run build && npm start"
+  },
+  "dependencies": {
+    "oracledb": "^6.8.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "@types/oracledb": "^6.6.0",
+    "@types/pg": "^8.15.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
