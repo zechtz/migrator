@@ -1,45 +1,19 @@
 import { TransformFunction } from "../types/index.js";
+import {
+  safeString,
+  safeInteger,
+  safeDate,
+  safeBoolean,
+  safeJson,
+  safeIntegerWithDefault,
+  safeDateWithDefault,
+} from "utils/data-helpers";
 
 /**
  * Custom transformer for birth registration data
  * Handles data type conversions and PostgreSQL-specific requirements
  */
 export const birthRegistrationTransformer: TransformFunction = (row: any) => {
-  // Helper function to safely convert values
-  const safeString = (value: any, maxLength?: number): string | null => {
-    if (value === null || value === undefined || value === "") {
-      return null;
-    }
-    const str = String(value).trim();
-    return maxLength ? str.substring(0, maxLength) : str;
-  };
-
-  const safeInteger = (value: any): number | null => {
-    if (value === null || value === undefined) {
-      return null;
-    }
-    const num = parseInt(String(value), 10);
-    return isNaN(num) ? null : num;
-  };
-
-  const safeDate = (value: any): Date | null => {
-    if (value === null || value === undefined) {
-      return null;
-    }
-    if (value instanceof Date) {
-      return value;
-    }
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? null : date;
-  };
-
-  const safeBoolean = (value: any): boolean => {
-    if (value === null || value === undefined || value === "") {
-      return false;
-    }
-    return Boolean(value);
-  };
-
   return {
     // Child Information (with length limits)
     provided_pin_no: safeString(row.PROVIDED_PIN_NO, 20),
@@ -101,8 +75,11 @@ export const birthRegistrationTransformer: TransformFunction = (row: any) => {
     last_updated_by_id: safeInteger(row.LAST_UPDATED_BY_ID),
     last_updated_date: safeDate(row.LAST_UPDATED_DATE),
     last_updated_by_email: safeString(row.LAST_UPDATED_BY_EMAIL),
-    certificate_status_id: safeInteger(row.CERTIFICATE_STATUS_ID) || 1, // Default to 1
-    last_track_date: safeDate(row.LAST_TRACK_DATE) || new Date(), // Default to now
+
+    // Fields with defaults using the helper functions
+    certificate_status_id: safeIntegerWithDefault(1)(row.CERTIFICATE_STATUS_ID),
+    last_track_date: safeDateWithDefault(new Date())(row.LAST_TRACK_DATE),
+    printed_count: safeIntegerWithDefault(0)(row.PRINTED_COUNT),
 
     // Computed Full Names
     child_full_name: safeString(row.CHILD_FULL_NAME, 255),
@@ -111,8 +88,7 @@ export const birthRegistrationTransformer: TransformFunction = (row: any) => {
 
     // Certificate Information
     first_printed_date: safeDate(row.FIRST_PRINTED_DATE),
-    printed_count: safeInteger(row.PRINTED_COUNT) || 0, // Default to 0
     last_printed_date: safeDate(row.LAST_PRINTED_DATE),
-    attachment: row.ATTACHMENT ? JSON.stringify(row.ATTACHMENT) : null, // Convert to JSONB
+    attachment: safeJson(row.ATTACHMENT), // Convert to JSONB
   };
 };
