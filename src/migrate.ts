@@ -28,7 +28,8 @@ const main = async (): Promise<void> => {
         // 🔍 Query loaded from SQL file
         sourceQuery: loadQueryWithEnv("birth-registration.sql"),
         targetTable: "registry.tbl_birth_certificate_info",
-        transformFn: birthRegistrationTransformer, // Use custom transformer
+        // Use custom transformer
+        transformFn: birthRegistrationTransformer,
         priority: 10,
         paginationStrategy: "cursor",
         cursorColumn: "B.ID",
