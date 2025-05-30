@@ -1,7 +1,8 @@
 export interface OracleConfig {
   host: string;
   port: number;
-  serviceName: string;
+  serviceName?: string;
+  sid?: string;
   user: string;
   password: string;
 }
