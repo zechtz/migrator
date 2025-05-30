@@ -1,121 +1,112 @@
-import { createConfig, type ConfigOptions } from "config";
-import { runMigration, runSequentialMigration } from "migration/runner";
-import { type MigrationTask } from "types";
-import { createFieldMapper, createCustomTransformer } from "data/transform";
+#!/usr/bin/env node
 
+import { createConfig } from "./config/index.js";
+import { createConfigFromEnv, validateConfiguration } from "./config/env.js";
+import { runMigration } from "./migration/runner.js";
+import { type MigrationTask } from "./types/index.js";
+import { loadQueryWithEnv } from "./utils/query-loader.js";
+import { birthRegistrationTransformer } from "./transformers/birth-registration-transformer.js";
+
+/**
+ * Main migration script that uses environment variables for configuration
+ */
 const main = async (): Promise<void> => {
-  const configOptions: ConfigOptions = {
-    // Database connections
-    oracleHost: "oracle-server.example.com",
-    oraclePort: 1521,
-    oracleServiceName: "ORCL",
-    oracleUser: "your_oracle_user",
-    oraclePassword: "your_oracle_password",
-    postgresHost: "postgres-server.example.com",
-    postgresPort: 5432,
-    postgresDatabase: "your_postgres_db",
-    postgresUser: "your_postgres_user",
-    postgresPassword: "your_postgres_password",
-
-    // Basic settings
-    batchSize: 1000,
-    maxRetries: 3,
-    retryDelay: 5000,
-
-    // Concurrency settings
-    maxConcurrentBatches: 4, // Process up to 4 batches simultaneously
-    maxConcurrentTables: 2, // Process up to 2 tables simultaneously
-    maxConcurrentConnections: 10, // PostgreSQL connection pool size
-
-    // Pagination strategy (global default)
-    paginationStrategy: "cursor", // Options: 'rownum', 'offset', 'cursor'
-    cursorColumn: "id", // Default cursor column for cursor-based pagination
-  };
-
-  const config = createConfig(configOptions);
-
-  // Example transformations
-  const userTransform = createFieldMapper({
-    USER_ID: "id",
-    FULL_NAME: "name",
-    EMAIL_ADDRESS: "email",
-    CREATED_DATE: "created_at",
-  });
-
-  const orderTransform = createCustomTransformer((row: any) => ({
-    id: row.ORDER_ID,
-    customer_id: row.CUSTOMER_ID,
-    total: parseFloat(row.TOTAL_AMOUNT),
-    status: row.ORDER_STATUS?.toLowerCase(),
-    created_at: new Date(row.ORDER_DATE),
-    is_large_order: parseFloat(row.TOTAL_AMOUNT) > 1000,
-  }));
-
-  const migrations: MigrationTask[] = [
-    {
-      sourceQuery: "SELECT * FROM users ORDER BY user_id",
-      targetTable: "users",
-      transformFn: userTransform,
-      priority: 10, // High priority - migrate first
-      maxConcurrentBatches: 6, // Override global setting for this table
-      paginationStrategy: "cursor",
-      cursorColumn: "user_id",
-      orderByClause: "ORDER BY user_id ASC",
-    },
-    {
-      sourceQuery: "SELECT * FROM orders ORDER BY order_id",
-      targetTable: "orders",
-      transformFn: orderTransform,
-      priority: 5, // Medium priority
-      paginationStrategy: "cursor",
-      cursorColumn: "order_id",
-      orderByClause: "ORDER BY order_id ASC",
-    },
-    {
-      sourceQuery: "SELECT * FROM products ORDER BY product_id",
-      targetTable: "products",
-      priority: 1, // Low priority - migrate last
-      paginationStrategy: "offset", // Use OFFSET for this table
-      orderByClause: "ORDER BY product_id ASC",
-    },
-    {
-      sourceQuery: "SELECT * FROM simple_table ORDER BY id",
-      targetTable: "simple_table",
-      // Uses default transformation and pagination strategy
-    },
-  ];
+  console.log("🚀 Oracle to PostgreSQL Migration Tool");
+  console.log("=====================================");
+  console.log("");
 
   try {
-    // Choose migration type
-    const useConcurrentMigration = true;
+    // Load configuration from environment variables
+    const configOptions = createConfigFromEnv();
+    validateConfiguration(configOptions);
 
-    if (useConcurrentMigration) {
-      console.log("Starting concurrent migration...");
-      await runMigration(config, migrations);
-    } else {
-      console.log("Starting sequential migration...");
-      await runSequentialMigration(config, migrations);
-    }
+    const config = createConfig(configOptions);
 
-    console.log("Migration completed successfully!");
+    // Define your migration tasks here
+    const migrations: MigrationTask[] = [
+      {
+        // 🔍 Query loaded from SQL file
+        sourceQuery: loadQueryWithEnv("birth-registration.sql"),
+        targetTable: "registry.tbl_birth_certificate_info",
+        // Use custom transformer
+        transformFn: birthRegistrationTransformer,
+        priority: 10,
+        paginationStrategy: "cursor",
+        cursorColumn: "B.ID",
+        orderByClause: "ORDER BY B.ID ASC",
+        maxConcurrentBatches: 2,
+      },
+    ];
+
+    console.log(`📋 Starting migration of ${migrations.length} tables...`);
+    console.log("");
+
+    // Run the migration
+    await runMigration(config, migrations);
+
+    console.log("");
+    console.log("✅ Migration completed successfully!");
+    console.log("");
+
     process.exit(0);
   } catch (error) {
-    console.error("Migration failed:", (error as Error).message);
+    console.error("");
+    console.error("❌ Migration failed:", (error as Error).message);
+    console.error("");
+
+    // Show helpful error information
+    if ((error as Error).message.includes("Required environment variable")) {
+      console.error(
+        "💡 Make sure you have created a .env file with all required variables.",
+      );
+      console.error(
+        "   Copy .env.example to .env and update with your database credentials.",
+      );
+    }
+
+    if ((error as Error).message.includes("connect")) {
+      console.error(
+        "💡 Check your database connection settings and ensure the databases are running.",
+      );
+    }
+
+    if ((error as Error).message.includes("Failed to load query")) {
+      console.error(
+        "💡 Make sure your SQL query files exist in the src/queries/ directory.",
+      );
+      console.error("   Expected file: src/queries/birth-registration.sql");
+    }
+
     process.exit(1);
   }
 };
 
-// Graceful shutdown handlers
+// Handle graceful shutdown
 process.on("SIGINT", () => {
-  console.log("\nReceived SIGINT. Shutting down gracefully...");
+  console.log("\n🛑 Received SIGINT. Shutting down gracefully...");
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
-  console.log("\nReceived SIGTERM. Shutting down gracefully...");
+  console.log("\n🛑 Received SIGTERM. Shutting down gracefully...");
   process.exit(0);
 });
 
+// Handle unhandled errors
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("❌ Uncaught Exception:", error);
+  process.exit(1);
+});
+
+// Run the migration if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(console.error);
+  main().catch((error) => {
+    console.error("❌ Fatal error:", error);
+    process.exit(1);
+  });
 }
