@@ -3,7 +3,8 @@ import { MigrationConfig } from "types";
 export interface ConfigOptions {
   oracleHost: string;
   oraclePort?: number;
-  oracleServiceName: string;
+  oracleServiceName?: string;
+  oracleSid?: string;
   oracleUser: string;
   oraclePassword: string;
   postgresHost: string;
@@ -27,6 +28,7 @@ export const createConfig = (options: ConfigOptions): MigrationConfig => {
     oracleHost,
     oraclePort = 1521,
     oracleServiceName,
+    oracleSid,
     oracleUser,
     oraclePassword,
     postgresHost,
@@ -45,11 +47,17 @@ export const createConfig = (options: ConfigOptions): MigrationConfig => {
     cursorColumn,
   } = options;
 
+  // Validation: ensure either SID or Service Name is provided
+  if (!oracleSid && !oracleServiceName) {
+    throw new Error("Either oracleSid or oracleServiceName must be provided");
+  }
+
   return {
     oracle: {
       host: oracleHost,
       port: oraclePort,
       serviceName: oracleServiceName,
+      sid: oracleSid,
       user: oracleUser,
       password: oraclePassword,
     },
