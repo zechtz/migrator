@@ -7,7 +7,25 @@ export const connectToOracle = async (
   config: OracleConfig,
 ): Promise<oracledb.Connection> => {
   try {
-    const connectionString = `${config.host}:${config.port}/${config.serviceName}`;
+    // Build connection string based on whether we have SID or Service Name
+    let connectionString: string;
+
+    if (config.sid) {
+      // SID format: host:port:sid (traditional format)
+      // For Easy Connect, we need to use a different approach for SID
+      connectionString = `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${config.host})(PORT=${config.port}))(CONNECT_DATA=(SID=${config.sid})))`;
+      await logInfo(
+        `Connecting to Oracle using SID: ${config.host}:${config.port}:${config.sid}`,
+      );
+    } else if (config.serviceName) {
+      // Service Name format: host:port/serviceName (Easy Connect format)
+      connectionString = `${config.host}:${config.port}/${config.serviceName}`;
+      await logInfo(
+        `Connecting to Oracle using Service Name: ${config.host}:${config.port}/${config.serviceName}`,
+      );
+    } else {
+      throw new Error("Either Oracle SID or Service Name must be provided");
+    }
 
     const connection = await oracledb.getConnection({
       user: config.user,
@@ -15,14 +33,13 @@ export const connectToOracle = async (
       connectString: connectionString,
     });
 
-    await logInfo("Connected to Oracle database");
+    await logInfo("Connected to Oracle database successfully");
     return connection;
   } catch (error) {
     await logError(`Failed to connect to Oracle: ${(error as Error).message}`);
     throw error;
   }
 };
-
 export const fetchOracleDataWithPagination = async (
   connection: oracledb.Connection,
   baseQuery: string,
