@@ -1,0 +1,66 @@
+FROM node:18-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache libaio libnsl libc6-compat
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json yarn.lock* ./
+
+# Install all dependencies (including dev)
+RUN yarn install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN yarn build
+
+# Production stage
+FROM node:18-alpine AS production
+
+# Install only runtime dependencies for Oracle client
+RUN apk add --no-cache \
+  libaio \
+  libnsl \
+  libc6-compat \
+  curl \
+  && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+  adduser -S migrator -u 1001 -G nodejs
+
+# Copy package files
+COPY package*.json yarn.lock* ./
+
+# Install only production dependencies
+RUN yarn install --frozen-lockfile --production=true && \
+  yarn cache clean && \
+  rm -rf /tmp/*
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Copy necessary files
+COPY --from=builder /app/src/queries ./src/queries
+
+# Create required directories
+RUN mkdir -p /app/logs && \
+  chown -R migrator:nodejs /app
+
+# Switch to non-root user
+USER migrator
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "process.exit(0)" || exit 1
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Default command
+CMD ["node", "dist/migrate.js"]
