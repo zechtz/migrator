@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from "pg";
-import { PostgresConfig } from "types";
-import { logInfo, logError } from "utils/logger";
+import { PostgresConfig } from "../types/index.js";
+import { logInfo, logError } from "../utils/logger.js";
 
 export const connectToPostgres = async (
   config: PostgresConfig,

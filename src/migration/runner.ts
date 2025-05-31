@@ -1,8 +1,11 @@
 import { MigrationConfig, MigrationTask } from "types";
-import { initializeConnections, closeConnections } from "database/connections";
-import { loadCheckpoint } from "data/checkpoint";
-import { ConcurrentMigrator } from "migration/concurrent-migrator";
-import { logInfo, logError } from "utils/logger";
+import {
+  initializeConnections,
+  closeConnections,
+} from "../database/connections.js";
+import { loadCheckpoint } from "../data/checkpoint.js";
+import { ConcurrentMigrator } from "../migration/concurrent-migrator.js";
+import { logInfo, logError } from "../utils/logger.js";
 
 export const runMigration = async (
   config: MigrationConfig,

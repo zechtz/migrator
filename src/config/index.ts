@@ -1,4 +1,4 @@
-import { MigrationConfig } from "types";
+import { MigrationConfig } from "types/index.js";
 
 export interface ConfigOptions {
   oracleHost: string;

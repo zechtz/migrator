@@ -5,7 +5,7 @@ import { createConfigFromEnv, validateConfiguration } from "./config/env.js";
 import { runMigration } from "./migration/runner.js";
 import { type MigrationTask } from "./types/index.js";
 import { loadQueryWithEnv } from "./utils/query-loader.js";
-import { birthRegistrationTransformer } from "./data/birth-registration-transformer.js";
+import { birthRegistrationTransformer } from "./transformers/birth-registration-transformer.js";
 
 /**
  * Main migration script that uses environment variables for configuration

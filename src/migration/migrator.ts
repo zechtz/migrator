@@ -4,13 +4,13 @@ import {
   Checkpoint,
   BatchResult,
   TransformFunction,
-} from "types";
-import { fetchOracleData } from "database/oracle";
-import { insertPostgresData } from "database/postgres";
-import { transformData } from "data/transform";
-import { saveCheckpoint } from "data/checkpoint";
-import { retryOperation, sleep } from "utils/helpers";
-import { logInfo } from "utils/logger";
+} from "../types/index.js";
+import { fetchOracleData } from "../database/oracle.js";
+import { insertPostgresData } from "../database/postgres.js";
+import { transformData } from "../data/transform.js";
+import { saveCheckpoint } from "../data/checkpoint.js";
+import { retryOperation, sleep } from "../utils/helpers.js";
+import { logInfo } from "../utils/logger.js";
 
 export const migrateTable = async (
   connections: DatabaseConnections,

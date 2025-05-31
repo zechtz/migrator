@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { Checkpoint } from "../../src/types";
-import { logError, logWarn } from "../../src/utils/logger";
+import { Checkpoint } from "../types/index.js";
+import { logError, logWarn } from "../utils/logger.js";
 
 export const loadCheckpoint = async (
   checkpointFile: string,

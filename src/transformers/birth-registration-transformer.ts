@@ -7,7 +7,7 @@ import {
   safeJson,
   safeIntegerWithDefault,
   safeDateWithDefault,
-} from "utils/data-helpers";
+} from "../utils/data-helpers.js";
 
 /**
  * Custom transformer for birth registration data

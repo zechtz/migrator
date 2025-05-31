@@ -1,4 +1,4 @@
-import { logError, logInfo } from "utils/logger";
+import { logError, logInfo } from "../utils/logger.js";
 
 export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));

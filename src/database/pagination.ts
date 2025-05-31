@@ -1,4 +1,4 @@
-import { PaginationContext } from "../../src/types";
+import { PaginationContext } from "../types/index.js";
 
 export const buildPaginatedQuery = (
   baseQuery: string,

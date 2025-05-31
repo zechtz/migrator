@@ -6,22 +6,22 @@ import {
   MigrationTask,
   PaginationContext,
   BatchResult,
-} from "types";
+} from "../types/index.js";
 import {
   fetchOracleDataWithPagination,
   estimateTableRowCount,
   checkIndexExists,
-} from "database/oracle";
-import { insertPostgresData } from "database/postgres";
-import { transformData } from "data/transform";
-import { saveCheckpoint } from "data/checkpoint";
-import { retryOperation } from "utils/helpers";
-import { Semaphore, AsyncQueue } from "utils/semaphore";
+} from "../database/oracle.js";
+import { insertPostgresData } from "../database/postgres.js";
+import { transformData } from "../data/transform.js";
+import { saveCheckpoint } from "../data/checkpoint.js";
+import { retryOperation } from "../utils/helpers.js";
+import { Semaphore, AsyncQueue } from "../utils/semaphore.js";
 import {
   determineBestPaginationStrategy,
   validatePaginationConfig,
-} from "database/pagination";
-import { logInfo, logError, logWarn } from "utils/logger";
+} from "../database/pagination.js";
+import { logInfo, logError, logWarn } from "../utils/logger.js";
 
 export class ConcurrentMigrator {
   private connections: DatabaseConnections;
