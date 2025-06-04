@@ -1,111 +1,62 @@
-// Type for transform functions
-export type TransformFunction = (row: any) => Record<string, any>;
+import {
+  TransformFunction,
+  EnhancedTransformFunction,
+} from "../types/index.js";
+import { ForeignKeyResolver } from "../utils/foreign-key-resolver.js";
+import { logWarn } from "../utils/logger.js";
 
-// Generic transform data function that accepts a custom transformer
 export const transformData = async (
-  oracleData: any[],
-  transformFn?: TransformFunction,
-): Promise<Record<string, any>[]> => {
-  if (transformFn) {
-    return oracleData.map(transformFn);
+  rows: any[],
+  transformFn?: TransformFunction | EnhancedTransformFunction,
+  resolvers?: Record<string, ForeignKeyResolver>,
+): Promise<any[]> => {
+  if (!transformFn) {
+    return rows; // No transformation needed
   }
 
-  // Default transformation (basic type conversion)
-  return defaultTransform(oracleData);
-};
+  const transformedRows: any[] = [];
 
-// Default transformation function (the original logic)
-export const defaultTransform = (oracleData: any[]): Record<string, any>[] => {
-  const transformedData: Record<string, any>[] = [];
+  for (const row of rows) {
+    try {
+      let transformedRow;
 
-  for (const row of oracleData) {
-    const transformedRow: Record<string, any> = {};
-
-    for (const [key, value] of Object.entries(row)) {
-      const lowerKey = key.toLowerCase();
-
-      if (value === null || value === undefined) {
-        transformedRow[lowerKey] = null;
-      } else if (value instanceof Date) {
-        transformedRow[lowerKey] = value;
-      } else if (typeof value === "number") {
-        transformedRow[lowerKey] = value;
-      } else if (Buffer.isBuffer(value)) {
-        transformedRow[lowerKey] = value.toString();
+      // Check if it's an enhanced transform function (async and takes resolvers)
+      if (isEnhancedTransformFunction(transformFn)) {
+        // Call the enhanced function with resolvers
+        const result = transformFn(row, resolvers);
+        // Handle both sync and async enhanced functions
+        transformedRow = result instanceof Promise ? await result : result;
       } else {
-        transformedRow[lowerKey] = String(value);
+        // Legacy transform function (sync, no resolvers)
+        transformedRow = (transformFn as TransformFunction)(row);
       }
-    }
 
-    transformedData.push(transformedRow);
+      transformedRows.push(transformedRow);
+    } catch (error) {
+      await logWarn(`Transform failed for row: ${error}`);
+      throw error;
+    }
   }
 
-  return transformedData;
+  return transformedRows;
 };
 
-// Helper functions for common transformations
-export const createFieldMapper = (
-  fieldMappings: Record<string, string>,
-): TransformFunction => {
-  return (row: any) => {
-    const transformed: Record<string, any> = {};
+/**
+ * Type guard to check if transform function is enhanced
+ */
+function isEnhancedTransformFunction(
+  fn: TransformFunction | EnhancedTransformFunction,
+): fn is EnhancedTransformFunction {
+  // Check if function accepts more than 1 parameter
+  return fn.length > 1;
+}
 
-    for (const [oracleField, postgresField] of Object.entries(fieldMappings)) {
-      transformed[postgresField] = row[oracleField];
-    }
-
-    return transformed;
-  };
-};
-
-export const createCustomTransformer = (
-  transformLogic: (row: any) => Record<string, any>,
-): TransformFunction => {
-  return transformLogic;
-};
-
-// Common transform patterns
-export const transforms = {
-  // Just lowercase all field names
-  lowercaseFields: (row: any) => {
-    const transformed: Record<string, any> = {};
-    for (const [key, value] of Object.entries(row)) {
-      transformed[key.toLowerCase()] = value;
-    }
-    return transformed;
-  },
-
-  // Apply field mappings and basic type conversion
-  mapAndConvert: (fieldMappings: Record<string, string>) => (row: any) => {
-    const transformed: Record<string, any> = {};
-
-    for (const [oracleField, postgresField] of Object.entries(fieldMappings)) {
-      let value = row[oracleField];
-
-      // Basic type conversion
-      if (value === null || value === undefined) {
-        value = null;
-      } else if (typeof value === "string") {
-        value = value.trim();
-      } else if (Buffer.isBuffer(value)) {
-        value = value.toString();
-      }
-
-      transformed[postgresField] = value;
-    }
-
-    return transformed;
-  },
-
-  // Add computed fields
-  withComputedFields:
-    (computedFields: Record<string, (row: any) => any>) => (row: any) => {
-      const transformed = { ...row };
-
-      for (const [fieldName, computeFn] of Object.entries(computedFields)) {
-        transformed[fieldName] = computeFn(row);
-      }
-
-      return transformed;
-    },
+/**
+ * Backward compatibility - your existing transformData export
+ */
+export const transformDataLegacy = async (
+  rows: any[],
+  transformFn?: TransformFunction,
+): Promise<any[]> => {
+  return transformData(rows, transformFn);
 };
