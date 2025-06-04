@@ -22,6 +22,17 @@ import {
   validatePaginationConfig,
 } from "../database/pagination.js";
 import { logInfo, logError, logWarn } from "../utils/logger.js";
+import {
+  buildMappingCache,
+  createResolvers,
+  COMMON_RESOLVERS,
+} from "../utils/foreign-key-resolver.js";
+
+// Type for cache configurations
+interface CacheConfig {
+  codeCol: string;
+  idCol: string;
+}
 
 export class ConcurrentMigrator {
   private connections: DatabaseConnections;
@@ -40,7 +51,6 @@ export class ConcurrentMigrator {
     this.config = config;
     this.checkpoint = checkpoint;
 
-    // Initialize semaphores for concurrency control
     this.tableSemaphore = new Semaphore(config.maxConcurrentTables);
     this.batchSemaphore = new Semaphore(config.maxConcurrentBatches);
 
@@ -55,9 +65,9 @@ export class ConcurrentMigrator {
       `Starting concurrent migration of ${migrations.length} tables`,
     );
 
-    // Sort migrations by priority (higher priority first)
+    // Sort migrations by priority (lower number = higher priority for hierarchical data)
     const sortedMigrations = migrations.sort(
-      (a, b) => (b.priority || 0) - (a.priority || 0),
+      (a, b) => (a.priority || 0) - (b.priority || 0),
     );
 
     // Create promises for each table migration
@@ -68,7 +78,6 @@ export class ConcurrentMigrator {
     // Wait for all migrations to complete
     const results = await Promise.allSettled(migrationPromises);
 
-    // Check for failures
     const failures = results.filter((result) => result.status === "rejected");
     if (failures.length > 0) {
       await logError(`${failures.length} table migrations failed`);
@@ -82,13 +91,50 @@ export class ConcurrentMigrator {
     migration: MigrationTask,
     tableId: string,
   ): Promise<number> {
-    // Acquire table-level semaphore
     await this.tableSemaphore.acquire();
 
     try {
-      return await this.migrateTableInternal(migration, tableId);
+      const result = await this.migrateTableInternal(migration, tableId);
+
+      // Build mapping cache after table completion (if it's a reference table)
+      await this.onTableCompleted(migration.targetTable);
+
+      return result;
     } finally {
       this.tableSemaphore.release();
+    }
+  }
+
+  // Build mapping cache after reference tables complete
+  private async onTableCompleted(targetTable: string): Promise<void> {
+    const cacheConfigs: Record<string, CacheConfig> = {
+      "crvs_global.tbl_delimitation_region": { codeCol: "code", idCol: "id" },
+      "crvs_global.tbl_delimitation_district": { codeCol: "code", idCol: "id" },
+      "crvs_global.tbl_delimitation_council": { codeCol: "code", idCol: "id" },
+      "crvs_global.tbl_delimitation_ward": {
+        codeCol: "code",
+        idCol: "ward_id",
+      },
+      "crvs_global.tbl_mgt_health_facility": {
+        codeCol: "code",
+        idCol: "health_facility_id",
+      },
+    };
+
+    const config = cacheConfigs[targetTable];
+    if (config) {
+      try {
+        await buildMappingCache(
+          this.connections.postgresPool,
+          targetTable,
+          config.codeCol,
+          config.idCol,
+        );
+        await logInfo(`✅ Built mapping cache for ${targetTable}`);
+      } catch (error) {
+        await logWarn(`⚠️ Failed to build cache for ${targetTable}: ${error}`);
+        // Continue migration - cache building is not critical for tables without dependencies
+      }
     }
   }
 
@@ -96,11 +142,10 @@ export class ConcurrentMigrator {
     migration: MigrationTask,
     tableId: string,
   ): Promise<number> {
-    const { sourceQuery, targetTable, transformFn } = migration;
+    const { sourceQuery, targetTable } = migration;
 
     await logInfo(`Starting migration for table: ${targetTable}`);
 
-    // Initialize or load table progress
     if (!this.checkpoint.tableProgress) {
       this.checkpoint.tableProgress = {};
     }
@@ -116,13 +161,11 @@ export class ConcurrentMigrator {
       return tableProgress.totalProcessed;
     }
 
-    // Determine optimal pagination strategy
     const paginationStrategy = await this.determinePaginationStrategy(
       migration,
       sourceQuery,
     );
 
-    // Validate pagination configuration
     validatePaginationConfig(
       paginationStrategy.strategy,
       paginationStrategy.cursorColumn,
@@ -138,7 +181,6 @@ export class ConcurrentMigrator {
       const maxConcurrentBatches =
         migration.maxConcurrentBatches || this.config.maxConcurrentBatches;
 
-      // Create batches for concurrent processing
       const batchJobs: BatchJob[] = [];
 
       for (let i = 0; i < maxConcurrentBatches && hasMore; i++) {
@@ -149,7 +191,7 @@ export class ConcurrentMigrator {
           batchSize: this.config.batchSize,
           sourceQuery,
           targetTable,
-          transformFn,
+          transformFn: migration.transformFn, // Use the transform function from migration
           paginationStrategy: paginationStrategy.strategy,
           cursorColumn: paginationStrategy.cursorColumn,
           lastCursorValue,
@@ -157,7 +199,6 @@ export class ConcurrentMigrator {
 
         batchJobs.push(batchJob);
 
-        // Update offset for next batch (only relevant for offset-based pagination)
         if (
           paginationStrategy.strategy === "offset" ||
           paginationStrategy.strategy === "rownum"
@@ -166,10 +207,8 @@ export class ConcurrentMigrator {
         }
       }
 
-      // Process batches concurrently
       const batchResults = await this.processBatchesConcurrently(batchJobs);
 
-      // Update progress
       let totalProcessedInBatch = 0;
       for (const result of batchResults) {
         totalProcessedInBatch += result.processedCount;
@@ -183,7 +222,6 @@ export class ConcurrentMigrator {
       tableProgress.lastProcessedId = offset;
       tableProgress.lastCursorValue = lastCursorValue;
 
-      // Save progress checkpoint
       this.checkpoint.tableProgress![tableId] = tableProgress;
       await saveCheckpoint(
         this.config.checkpointFile,
@@ -195,13 +233,11 @@ export class ConcurrentMigrator {
         `Table ${targetTable}: Processed ${totalProcessedInBatch} rows in batch. Total: ${tableProgress.totalProcessed}`,
       );
 
-      // Break if no more data or if any batch indicates completion
       if (totalProcessedInBatch === 0) {
         hasMore = false;
       }
     }
 
-    // Mark table as complete
     tableProgress.isComplete = true;
     this.checkpoint.tableProgress![tableId] = tableProgress;
 
@@ -227,7 +263,6 @@ export class ConcurrentMigrator {
   }
 
   private async processBatch(job: BatchJob): Promise<BatchResult> {
-    // Acquire batch-level semaphore
     await this.batchSemaphore.acquire();
 
     try {
@@ -257,10 +292,16 @@ export class ConcurrentMigrator {
         return { finished: true, processedCount: 0 };
       }
 
-      // Transform data
-      const transformedData = await transformData(result.rows, job.transformFn);
+      // Create resolvers for enhanced transform functions
+      const resolvers = this.createResolversForTransform(job.targetTable);
 
-      // Insert into PostgreSQL
+      // Transform data with resolvers if it's an enhanced function
+      const transformedData = await transformData(
+        result.rows,
+        job.transformFn,
+        resolvers,
+      );
+
       await insertPostgresData(
         this.connections.postgresPool,
         transformedData,
@@ -277,6 +318,33 @@ export class ConcurrentMigrator {
     }
   }
 
+  // Create resolvers for enhanced transform functions
+  private createResolversForTransform(
+    targetTable: string,
+  ): Record<string, any> | undefined {
+    // Only create resolvers for tables that need foreign key resolution
+    const tablesNeedingResolvers = [
+      "crvs_global.tbl_delimitation_district",
+      "crvs_global.tbl_delimitation_council",
+      "crvs_global.tbl_delimitation_ward",
+      "crvs_global.tbl_mgt_health_facility",
+      "crvs_global.tbl_mgt_registration_center",
+    ];
+
+    if (!tablesNeedingResolvers.includes(targetTable)) {
+      return undefined;
+    }
+
+    // Create all common resolvers
+    return createResolvers([
+      COMMON_RESOLVERS.region,
+      COMMON_RESOLVERS.district,
+      COMMON_RESOLVERS.council,
+      COMMON_RESOLVERS.ward,
+      COMMON_RESOLVERS.healthFacility,
+    ]);
+  }
+
   private async determinePaginationStrategy(
     migration: MigrationTask,
     sourceQuery: string,
@@ -285,7 +353,6 @@ export class ConcurrentMigrator {
     cursorColumn?: string;
     orderByClause?: string;
   }> {
-    // Use strategy from migration config if specified
     if (migration.paginationStrategy) {
       return {
         strategy: migration.paginationStrategy,
@@ -294,7 +361,6 @@ export class ConcurrentMigrator {
       };
     }
 
-    // Use global config strategy if specified
     if (this.config.paginationStrategy !== "rownum") {
       return {
         strategy: this.config.paginationStrategy,
@@ -303,9 +369,7 @@ export class ConcurrentMigrator {
       };
     }
 
-    // Auto-determine best strategy
     try {
-      // Extract table name from query (basic extraction)
       const tableMatch = sourceQuery.match(/FROM\s+(\w+)/i);
       if (!tableMatch) {
         await logWarn(
@@ -320,7 +384,6 @@ export class ConcurrentMigrator {
         tableName,
       );
 
-      // Check if there's an index on the cursor column
       const hasIndex = migration.cursorColumn
         ? await checkIndexExists(
             this.connections.oracle,
