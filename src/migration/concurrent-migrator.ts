@@ -25,8 +25,8 @@ import { logInfo, logError, logWarn } from "../utils/logger.js";
 import {
   buildMappingCache,
   createResolvers,
-  COMMON_RESOLVERS,
 } from "../utils/foreign-key-resolver.js";
+import { COMMON_RESOLVERS } from "../utils/foreign-key-resolvers.js";
 
 // Type for cache configurations
 interface CacheConfig {
@@ -335,7 +335,6 @@ export class ConcurrentMigrator {
       return undefined;
     }
 
-    // Create all common resolvers
     return createResolvers([
       COMMON_RESOLVERS.region,
       COMMON_RESOLVERS.district,
