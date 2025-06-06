@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Oracle to PostgreSQL data migration tool (TypeScript)",
   "main": "migration.ts",
-  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/migrate.js",

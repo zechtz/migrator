@@ -103,10 +103,10 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
-// Run the migration if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// ✅ Add this (works in CommonJS):
+if (require.main === module) {
   main().catch((error) => {
     console.error("❌ Fatal error:", error);
     process.exit(1);
   });
-}
+} // Run the migration if this file is executed directly
