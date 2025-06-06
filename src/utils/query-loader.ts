@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import fs, { readFileSync } from "fs";
 import { resolve } from "path";
 
 /**
@@ -51,7 +51,6 @@ export function loadQueryWithEnv(
 export function getAvailableQueries(): string[] {
   try {
     const queriesDir = resolve(process.cwd(), "src", "queries");
-    const fs = require("fs");
     return fs
       .readdirSync(queriesDir)
       .filter((file: string) => file.endsWith(".sql"))
