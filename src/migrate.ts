@@ -2,7 +2,7 @@
 
 import { createConfig } from "./config/index.js";
 import { createConfigFromEnv, validateConfiguration } from "./config/env.js";
-import { runMigration } from "./migration/runner.js"; // ✅ Same import, enhanced functionality
+import { runMigration } from "./migration/runner.js";
 import { type MigrationTask } from "./types/index.js";
 import { loadQueryWithEnv } from "./utils/query-loader.js";
 import { birthRegistrationTransformer } from "./transformers/birth-registration-transformer.js";
@@ -97,7 +97,6 @@ const main = async (): Promise<void> => {
     console.log("⚡ Caches will be built automatically at the right time");
     console.log("");
 
-    // ✅ Same function call - but now with enhanced FK resolution!
     await runMigration(config, migrations);
 
     console.log("");
@@ -112,7 +111,6 @@ const main = async (): Promise<void> => {
   }
 };
 
-// ✅ All your existing error handling works the same
 process.on("SIGINT", () => {
   console.log("\n🛑 Received SIGINT. Shutting down gracefully...");
   process.exit(0);
@@ -133,7 +131,6 @@ process.on("uncaughtException", (error) => {
   process.exit(1);
 });
 
-// ✅ Add this (works in CommonJS):
 if (require.main === module) {
   main().catch((error) => {
     console.error("❌ Fatal error:", error);

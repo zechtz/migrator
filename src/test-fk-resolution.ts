@@ -90,7 +90,6 @@ const testForeignKeyResolution = async (): Promise<void> => {
         }
       }
 
-      // Step 5: Test with some common codes that might not exist
       await logInfo("🧪 Testing with common region codes...");
       const commonCodes = [
         "01",
