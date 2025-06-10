@@ -2,8 +2,8 @@
 
 import { createConfig } from "./config/index.js";
 import { createConfigFromEnv, validateConfiguration } from "./config/env.js";
-import { runMigration } from "./migration/runner.js";
-import { type MigrationTask, type CacheDependency } from "./types/index.js";
+import { runMigration } from "./migration/runner.js"; // ✅ Same import, enhanced functionality
+import { type MigrationTask } from "./types/index.js";
 import { loadQueryWithEnv } from "./utils/query-loader.js";
 import { birthRegistrationTransformer } from "./transformers/birth-registration-transformer.js";
 import {
@@ -15,8 +15,12 @@ import {
 } from "./transformers/location-transformer.js";
 
 const main = async (): Promise<void> => {
-  console.log("🚀 Oracle to PostgreSQL Migration Tool");
-  console.log("=====================================");
+  console.log(
+    "🚀 Oracle to PostgreSQL Migration Tool (Enhanced FK Resolution)",
+  );
+  console.log(
+    "==================================================================",
+  );
   console.log("");
 
   try {
@@ -24,13 +28,12 @@ const main = async (): Promise<void> => {
     validateConfiguration(configOptions);
     const config = createConfig(configOptions);
 
-    // Define migration tasks - the system automatically handles FK resolution
     const migrations: MigrationTask[] = [
       // Level 1: Regions (no foreign keys)
       {
         sourceQuery: loadQueryWithEnv("regions.sql"),
         targetTable: "crvs_global.tbl_delimitation_region",
-        transformFn: regionTransformer, // Simple transformer
+        transformFn: regionTransformer,
         priority: 1,
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
@@ -38,9 +41,9 @@ const main = async (): Promise<void> => {
 
       // Level 2: Districts (depends on regions)
       {
-        sourceQuery: loadQueryWithEnv("districts.sql"), // Includes REGION_CODE
+        sourceQuery: loadQueryWithEnv("districts.sql"),
         targetTable: "crvs_global.tbl_delimitation_district",
-        transformFn: districtTransformer, // ✅ Uses resolveRegionId callback
+        transformFn: districtTransformer,
         priority: 2,
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
@@ -48,9 +51,9 @@ const main = async (): Promise<void> => {
 
       // Level 3: Councils (depends on districts)
       {
-        sourceQuery: loadQueryWithEnv("councils.sql"), // Includes DISTRICT_CODE
+        sourceQuery: loadQueryWithEnv("councils.sql"),
         targetTable: "crvs_global.tbl_delimitation_council",
-        transformFn: councilTransformer, // ✅ Uses resolveDistrictId callback
+        transformFn: councilTransformer,
         priority: 3,
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
@@ -58,9 +61,9 @@ const main = async (): Promise<void> => {
 
       // Level 4: Wards (depends on councils and districts)
       {
-        sourceQuery: loadQueryWithEnv("wards.sql"), // Includes COUNCIL_CODE, DISTRICT_CODE
+        sourceQuery: loadQueryWithEnv("wards.sql"),
         targetTable: "crvs_global.tbl_delimitation_ward",
-        transformFn: wardTransformer, // ✅ Uses multiple resolvers
+        transformFn: wardTransformer,
         priority: 4,
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
@@ -68,9 +71,9 @@ const main = async (): Promise<void> => {
 
       // Level 5: Registration Centers (depends on everything)
       {
-        sourceQuery: loadQueryWithEnv("registration-centers.sql"), // Includes all parent codes
+        sourceQuery: loadQueryWithEnv("registration-centers.sql"),
         targetTable: "crvs_global.tbl_mgt_registration_center",
-        transformFn: registrationCenterTransformer, // ✅ Uses all resolvers
+        transformFn: registrationCenterTransformer, // ✅ Your existing enhanced transformer
         priority: 5,
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
@@ -80,7 +83,7 @@ const main = async (): Promise<void> => {
       {
         sourceQuery: loadQueryWithEnv("birth-registration.sql"),
         targetTable: "registry.tbl_birth_certificate_info",
-        transformFn: birthRegistrationTransformer, // Legacy transformer works fine
+        transformFn: birthRegistrationTransformer, // ✅ Your existing transformer
         priority: 10,
         paginationStrategy: "cursor",
         cursorColumn: "B.ID",
@@ -90,11 +93,11 @@ const main = async (): Promise<void> => {
     ];
 
     console.log(`📋 Starting migration of ${migrations.length} tables...`);
-    console.log(
-      "🔗 Foreign key relationships will be resolved automatically via callbacks",
-    );
+    console.log("🔗 Enhanced foreign key resolution is now active");
+    console.log("⚡ Caches will be built automatically at the right time");
     console.log("");
 
+    // ✅ Same function call - but now with enhanced FK resolution!
     await runMigration(config, migrations);
 
     console.log("");
@@ -109,7 +112,7 @@ const main = async (): Promise<void> => {
   }
 };
 
-// Handle graceful shutdown
+// ✅ All your existing error handling works the same
 process.on("SIGINT", () => {
   console.log("\n🛑 Received SIGINT. Shutting down gracefully...");
   process.exit(0);
@@ -120,7 +123,6 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
-// Handle unhandled errors
 process.on("unhandledRejection", (reason, promise) => {
   console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);
@@ -137,4 +139,4 @@ if (require.main === module) {
     console.error("❌ Fatal error:", error);
     process.exit(1);
   });
-} // Run the migration if this file is executed directly
+}

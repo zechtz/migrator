@@ -131,8 +131,11 @@ export interface PaginationContext {
   orderByClause?: string;
 }
 
-/**
- * Enhanced Migration Task - extends MigrationTask with additional features
- * Note: This is now merged into MigrationTask for simplicity
- */
 export interface EnhancedMigrationTask extends MigrationTask {}
+
+export interface CacheConfig {
+  tableName: string;
+  codeCol: string;
+  idCol: string;
+  dependsOn?: string[];
+}

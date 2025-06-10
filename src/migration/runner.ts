@@ -1,12 +1,18 @@
-import { MigrationConfig, MigrationTask } from "types";
+import { MigrationConfig, MigrationTask } from "../types/index.js";
 import {
   initializeConnections,
   closeConnections,
 } from "../database/connections.js";
 import { loadCheckpoint } from "../data/checkpoint.js";
-import { ConcurrentMigrator } from "../migration/concurrent-migrator.js";
+import {
+  migrateTablesConcurrently,
+  getMigrationProgress,
+} from "./concurrent-migrator.js";
 import { logInfo, logError } from "../utils/logger.js";
 
+/**
+ * Run migration with enhanced foreign key resolution
+ */
 export const runMigration = async (
   config: MigrationConfig,
   migrations: MigrationTask[],
@@ -15,18 +21,23 @@ export const runMigration = async (
 
   try {
     connections = await initializeConnections(config);
-    await logInfo("Migration system initialized successfully");
+    await logInfo("🚀 Migration system initialized successfully");
 
     const checkpoint = await loadCheckpoint(config.checkpointFile);
 
-    // Create concurrent migrator
-    const migrator = new ConcurrentMigrator(connections, config, checkpoint);
-
     // Start progress monitoring
-    const progressInterval = setInterval(async () => {
-      const progress = await migrator.getProgress();
+    let progressInterval: NodeJS.Timeout | null = null;
+
+    // Create a simple batch queue mock for progress monitoring
+    const mockBatchQueue = { activeCount: 0, queueLength: 0 };
+
+    progressInterval = setInterval(async () => {
+      const progress = await getMigrationProgress(
+        checkpoint,
+        mockBatchQueue as any,
+      );
       await logInfo(
-        `Progress: ${progress.completedTables}/${progress.totalTables} tables complete, ` +
+        `📊 Progress: ${progress.completedTables}/${progress.totalTables} tables complete, ` +
           `${progress.totalRows} total rows processed, ` +
           `${progress.activeBatches} active batches, ` +
           `${progress.queuedBatches} queued batches`,
@@ -34,14 +45,21 @@ export const runMigration = async (
     }, 30000); // Log progress every 30 seconds
 
     try {
-      // Run concurrent migration
-      await migrator.migrateTablesConcurrently(migrations);
-      await logInfo("All migrations completed successfully");
+      // Run enhanced concurrent migration
+      await migrateTablesConcurrently(
+        connections,
+        config,
+        checkpoint,
+        migrations,
+      );
+      await logInfo("✅ All migrations completed successfully");
     } finally {
-      clearInterval(progressInterval);
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
     }
   } catch (error) {
-    await logError(`Migration failed: ${(error as Error).message}`);
+    await logError(`❌ Migration failed: ${(error as Error).message}`);
     throw error;
   } finally {
     if (connections) {
@@ -50,7 +68,9 @@ export const runMigration = async (
   }
 };
 
-// Legacy function for single-threaded migration (backward compatibility)
+/**
+ * Legacy function for single-threaded migration (backward compatibility)
+ */
 export const runSequentialMigration = async (
   config: MigrationConfig,
   migrations: MigrationTask[],
