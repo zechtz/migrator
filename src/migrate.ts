@@ -73,17 +73,17 @@ const main = async (): Promise<void> => {
       {
         sourceQuery: loadQueryWithEnv("registration-centers.sql"),
         targetTable: "crvs_global.tbl_mgt_registration_center",
-        transformFn: registrationCenterTransformer, // ✅ Your existing enhanced transformer
+        transformFn: registrationCenterTransformer,
         priority: 5,
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
       },
 
-      // Your existing birth registration migration (unchanged)
+      // birth registration migration (unchanged)
       {
         sourceQuery: loadQueryWithEnv("birth-registration.sql"),
         targetTable: "registry.tbl_birth_certificate_info",
-        transformFn: birthRegistrationTransformer, // ✅ Your existing transformer
+        transformFn: birthRegistrationTransformer,
         priority: 10,
         paginationStrategy: "cursor",
         cursorColumn: "B.ID",
