@@ -31,11 +31,17 @@ const testForeignKeyResolution = async (): Promise<void> => {
 
     try {
       const regionCheck = await client.query(`
-        SELECT COUNT(*) as count, 
-               array_agg(code ORDER BY id LIMIT 5) as sample_codes,
-               array_agg(id ORDER BY id LIMIT 5) as sample_ids
-        FROM crvs_global.tbl_delimitation_region 
-        WHERE code IS NOT NULL
+        SELECT 
+          (SELECT COUNT(*) FROM crvs_global.tbl_delimitation_region WHERE code IS NOT NULL) as count,
+          array_agg(code) as sample_codes,
+          array_agg(id) as sample_ids
+        FROM (
+          SELECT code, id 
+          FROM crvs_global.tbl_delimitation_region 
+          WHERE code IS NOT NULL
+          ORDER BY id 
+          LIMIT 5
+        ) sample_data
       `);
 
       const regionCount = parseInt(regionCheck.rows[0].count);
