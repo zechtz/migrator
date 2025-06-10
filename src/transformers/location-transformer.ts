@@ -89,14 +89,28 @@ export const wardTransformer: EnhancedTransformFunction = async (
 };
 
 /**
- * Health facility transformer - uses COUNCIL_CODE for resolution
+ * Registration Center Type transformer (reference table - no FKs needed)
+ */
+export const registrationCenterTypeTransformer = (row: any) => {
+  return {
+    id: safeInteger(row.ID),
+    code: safeString(row.CODE),
+    description: safeString(row.DESCRIPTION),
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted: false,
+  };
+};
+
+/**
+ * Updated Health facility transformer - now includes COUNCIL_NAME
  */
 export const healthFacilityTransformer: EnhancedTransformFunction = async (
   row,
   resolvers,
 ) => {
   const councilId = resolvers?.resolveCouncilId
-    ? await resolvers.resolveCouncilId(row.COUNCIL_CODE) // Use COUNCIL_CODE from query
+    ? await resolvers.resolveCouncilId(row.COUNCIL_CODE)
     : null;
 
   return {
@@ -107,6 +121,7 @@ export const healthFacilityTransformer: EnhancedTransformFunction = async (
     active: safeBoolean(row.ACTIVE),
     uuid: safeString(row.ID?.toString()),
     council_id: councilId,
+    council_name: safeString(row.COUNCIL_NAME),
     created_at: new Date(),
     updated_at: new Date(),
     deleted: false,
@@ -114,13 +129,13 @@ export const healthFacilityTransformer: EnhancedTransformFunction = async (
 };
 
 /**
- * Registration center transformer - handles multiple foreign keys
+ * Updated Registration center transformer - uses correct field names
  */
 export const registrationCenterTransformer: EnhancedTransformFunction = async (
   row,
   resolvers,
 ) => {
-  // Resolve multiple foreign keys using different resolvers
+  // Resolve multiple foreign keys using the correct field names from your query
   const regionId = resolvers?.resolveRegionId
     ? await resolvers.resolveRegionId(row.REGION_CODE)
     : null;
@@ -138,7 +153,11 @@ export const registrationCenterTransformer: EnhancedTransformFunction = async (
     : null;
 
   const healthFacilityId = resolvers?.resolveHealthFacilityId
-    ? await resolvers.resolveHealthFacilityId(row.HEALTH_FACILITY_CODE)
+    ? await resolvers.resolveHealthFacilityId(row.HEALTHFAC_CODE)
+    : null;
+
+  const registrationCenterTypeId = resolvers?.resolveRegistrationCenterTypeId
+    ? resolvers.resolveRegistrationCenterTypeId(row.HEALTH_FACILITY_CODE)
     : null;
 
   return {
@@ -150,6 +169,7 @@ export const registrationCenterTransformer: EnhancedTransformFunction = async (
     active: safeBoolean(row.ACTIVE),
     head_office: safeString(row.HEAD_OFFICE),
     is_head_office: safeBoolean(row.HEAD_OFFICE === "Y"),
+    reg_type: safeString(row.REG_TYPE),
     uuid: safeString(row.ID?.toString()),
 
     // Foreign key assignments
@@ -158,7 +178,7 @@ export const registrationCenterTransformer: EnhancedTransformFunction = async (
     council_id: councilId,
     ward_id: safeInteger(wardId), // Convert to integer for ward_id column
     health_facility_id: healthFacilityId,
-    registration_center_type_id: safeInteger(row.REGISTRATION_CENTER_TYPE_ID),
+    registration_center_type_id: registrationCenterTypeId,
 
     // Audit fields
     created_at: new Date(),

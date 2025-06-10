@@ -12,6 +12,7 @@ import {
   wardTransformer,
   healthFacilityTransformer,
   registrationCenterTransformer,
+  registrationCenterTypeTransformer,
 } from "./transformers/location-transformer.js";
 
 const main = async (): Promise<void> => {
@@ -35,65 +36,75 @@ const main = async (): Promise<void> => {
     const config = createConfig(configOptions);
 
     const migrations: MigrationTask[] = [
-      // Priority 1: Regions (must complete first - no dependencies)
+      // Priority 1: registration-center-types - lookup table
       {
-        sourceQuery: loadQueryWithEnv("regions.sql"),
-        targetTable: "crvs_global.tbl_delimitation_region",
-        transformFn: regionTransformer,
+        sourceQuery: loadQueryWithEnv("registration-center-types.sql"),
+        targetTable: "crvs_global.tbl_mgt_registration_center_type;",
+        transformFn: registrationCenterTypeTransformer,
         priority: 1,
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
       },
 
-      // Priority 2: Districts (depends on regions)
-      {
-        sourceQuery: loadQueryWithEnv("districts.sql"),
-        targetTable: "crvs_global.tbl_delimitation_district",
-        transformFn: districtTransformer,
-        priority: 2,
-        paginationStrategy: "rownum",
-        maxConcurrentBatches: 1,
-      },
-
-      // Priority 3: Councils (depends on districts)
-      {
-        sourceQuery: loadQueryWithEnv("councils.sql"),
-        targetTable: "crvs_global.tbl_delimitation_council",
-        transformFn: councilTransformer,
-        priority: 3,
-        paginationStrategy: "rownum",
-        maxConcurrentBatches: 1,
-      },
-
-      // Priority 4: Wards (depends on councils)
-      {
-        sourceQuery: loadQueryWithEnv("wards.sql"),
-        targetTable: "crvs_global.tbl_delimitation_ward",
-        transformFn: wardTransformer,
-        priority: 4,
-        paginationStrategy: "rownum",
-        maxConcurrentBatches: 1,
-      },
-
-      // Priority 5: Health facilities (depends on councils)
-      {
-        sourceQuery: loadQueryWithEnv("health-facilities.sql"),
-        targetTable: "crvs_global.tbl_mgt_health_facility",
-        transformFn: healthFacilityTransformer,
-        priority: 5,
-        paginationStrategy: "rownum",
-        maxConcurrentBatches: 1,
-      },
-
-      // Level 6: Registration Centers (depends on everything)
-      {
-        sourceQuery: loadQueryWithEnv("registration-centers.sql"),
-        targetTable: "crvs_global.tbl_mgt_registration_center",
-        transformFn: registrationCenterTransformer,
-        priority: 5,
-        paginationStrategy: "rownum",
-        maxConcurrentBatches: 1,
-      },
+      // // Priority 2: Regions (must complete first - no dependencies)
+      // {
+      //   sourceQuery: loadQueryWithEnv("regions.sql"),
+      //   targetTable: "crvs_global.tbl_delimitation_region",
+      //   transformFn: regionTransformer,
+      //   priority: 2,
+      //   paginationStrategy: "rownum",
+      //   maxConcurrentBatches: 1,
+      // },
+      //
+      // // Priority 3: Districts (depends on regions)
+      // {
+      //   sourceQuery: loadQueryWithEnv("districts.sql"),
+      //   targetTable: "crvs_global.tbl_delimitation_district",
+      //   transformFn: districtTransformer,
+      //   priority: 3,
+      //   paginationStrategy: "rownum",
+      //   maxConcurrentBatches: 1,
+      // },
+      //
+      // // Priority 4: Councils (depends on districts)
+      // {
+      //   sourceQuery: loadQueryWithEnv("councils.sql"),
+      //   targetTable: "crvs_global.tbl_delimitation_council",
+      //   transformFn: councilTransformer,
+      //   priority: 4,
+      //   paginationStrategy: "rownum",
+      //   maxConcurrentBatches: 1,
+      // },
+      //
+      // // Priority 5: Wards (depends on councils)
+      // {
+      //   sourceQuery: loadQueryWithEnv("wards.sql"),
+      //   targetTable: "crvs_global.tbl_delimitation_ward",
+      //   transformFn: wardTransformer,
+      //   priority: 5,
+      //   paginationStrategy: "rownum",
+      //   maxConcurrentBatches: 1,
+      // },
+      //
+      // // Priority 6: Health facilities (depends on councils)
+      // {
+      //   sourceQuery: loadQueryWithEnv("health-facilities.sql"),
+      //   targetTable: "crvs_global.tbl_mgt_health_facility",
+      //   transformFn: healthFacilityTransformer,
+      //   priority: 6,
+      //   paginationStrategy: "rownum",
+      //   maxConcurrentBatches: 1,
+      // },
+      //
+      // // Level 8: Registration Centers (depends on everything)
+      // {
+      //   sourceQuery: loadQueryWithEnv("registration-centers.sql"),
+      //   targetTable: "crvs_global.tbl_mgt_registration_center",
+      //   transformFn: registrationCenterTransformer,
+      //   priority: 8,
+      //   paginationStrategy: "rownum",
+      //   maxConcurrentBatches: 1,
+      // },
       //
       // // birth registration migration
       // {

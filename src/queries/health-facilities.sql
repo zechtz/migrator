@@ -1,10 +1,13 @@
 SELECT 
-    hf.ID, 
-    hf.CODE, 
-    hf.NAME, 
-    hf.COUNCIL_ID, 
-    hf.POST_CODE, 
+    hf.ID,
+    hf.CODE,
+    hf.NAME,
+    hf.COUNCIL_ID,
+    hf.POST_CODE,
     hf.ACTIVE,
-    c.CODE as COUNCIL_CODE
-FROM CRVS.HEALTH_FACILITY hf
-LEFT JOIN CRVS.COUNCIL c ON hf.COUNCIL_ID = c.ID
+    c.CODE AS COUNCIL_CODE,
+    c.NAME AS COUNCIL_NAME
+FROM crvs.HEALTH_FACILITY hf
+LEFT JOIN crvs.COUNCIL c ON hf.COUNCIL_ID = c.ID
+WHERE hf.ACTIVE = 1
+ORDER BY hf.CODE;
