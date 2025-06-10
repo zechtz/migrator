@@ -11,7 +11,7 @@ import {
 import { logInfo, logError } from "../utils/logger.js";
 
 /**
- * Run migration with enhanced foreign key resolution
+ * Run migration with foreign key resolution
  */
 export const runMigration = async (
   config: MigrationConfig,

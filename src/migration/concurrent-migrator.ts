@@ -103,10 +103,10 @@ export const migrateTablesConcurrently = async (
     (a, b) => (a.priority || 0) - (b.priority || 0),
   );
 
-  // Step 1: Build initial caches for reference tables that already exist
+  // Build initial caches for reference tables that already exist
   await buildInitialCaches(connections.postgresPool, DEFAULT_CACHE_CONFIGS);
 
-  // Step 2: Process migrations with proper dependency management
+  // Process migrations with proper dependency management
   const migrationPromises = sortedMigrations.map((migration, index) =>
     migrateTableWithDependencies(state, migration, `table_${index}`),
   );
@@ -474,7 +474,7 @@ export const getMigrationProgress = async (
 };
 
 /**
- * Legacy function for backward compatibility (updated to use functional approach)
+ * Legacy function for backward compatibility
  */
 export const migrateTable = async (
   connections: DatabaseConnections,

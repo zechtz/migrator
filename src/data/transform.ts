@@ -52,7 +52,7 @@ function isEnhancedTransformFunction(
 }
 
 /**
- * Backward compatibility - your existing transformData export
+ * Backward compatibility
  */
 export const transformDataLegacy = async (
   rows: any[],

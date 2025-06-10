@@ -1,20 +1,11 @@
 import { Pool } from "pg";
 import { logInfo, logError, logWarn } from "./logger.js";
+import { CacheConfig } from "../types//index.js";
 
 // Global mapping cache with debugging
 const mappingCache = new Map<string, Map<string, number>>();
 
 export type ForeignKeyResolver = (sourceCode: string) => Promise<number | null>;
-
-/**
- * Cache configuration for reference tables
- */
-export interface CacheConfig {
-  tableName: string;
-  codeCol: string;
-  idCol: string;
-  dependsOn?: string[];
-}
 
 /**
  * Default cache configurations
