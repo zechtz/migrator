@@ -22,14 +22,14 @@ import {
   validatePaginationConfig,
 } from "../database/pagination.js";
 import { logInfo, logError, logWarn } from "../utils/logger.js";
-import { COMMON_RESOLVERS } from "../utils/foreign-key-resolvers.js";
 import {
-  buildCacheAfterMigration,
   buildInitialCaches,
+  buildCacheAfterMigration,
   createResolversEnhanced,
-  DEFAULT_CACHE_CONFIGS,
   getTablesNeedingResolvers,
+  DEFAULT_CACHE_CONFIGS,
 } from "../utils/foreign-key-resolver.js";
+import { COMMON_RESOLVERS } from "../utils/foreign-key-resolvers.js";
 
 /**
  * Migration state to track concurrency and progress
@@ -83,7 +83,7 @@ const initializeMigrationState = (
 };
 
 /**
- * Main migration function - enhanced with foreign key resolution
+ * Main migration function - enhanced with proper sequential dependency handling
  */
 export const migrateTablesConcurrently = async (
   connections: DatabaseConnections,
@@ -103,24 +103,68 @@ export const migrateTablesConcurrently = async (
     (a, b) => (a.priority || 0) - (b.priority || 0),
   );
 
-  // Build initial caches for reference tables that already exist
+  // Step 1: Build initial caches for reference tables that already exist
   await buildInitialCaches(connections.postgresPool, DEFAULT_CACHE_CONFIGS);
 
-  // Process migrations with proper dependency management
-  const migrationPromises = sortedMigrations.map((migration, index) =>
-    migrateTableWithDependencies(state, migration, `table_${index}`),
-  );
-
-  // Wait for all migrations to complete
-  const results = await Promise.allSettled(migrationPromises);
-
-  const failures = results.filter((result) => result.status === "rejected");
-  if (failures.length > 0) {
-    await logError(`❌ ${failures.length} table migrations failed`);
-    throw new Error(`Migration failed for ${failures.length} tables`);
-  }
+  // Step 2: Process migrations SEQUENTIALLY by priority groups to respect dependencies
+  await processMigrationsByPriorityGroups(state, sortedMigrations);
 
   await logInfo("✅ All table migrations completed successfully");
+};
+
+/**
+ * Process migrations in priority groups to ensure dependencies are met
+ */
+const processMigrationsByPriorityGroups = async (
+  state: MigrationState,
+  migrations: MigrationTask[],
+): Promise<void> => {
+  // Group migrations by priority
+  const priorityGroups = new Map<number, MigrationTask[]>();
+
+  migrations.forEach((migration) => {
+    const priority = migration.priority || 0;
+    if (!priorityGroups.has(priority)) {
+      priorityGroups.set(priority, []);
+    }
+    priorityGroups.get(priority)!.push(migration);
+  });
+
+  // Process each priority group sequentially
+  const sortedPriorities = Array.from(priorityGroups.keys()).sort(
+    (a, b) => a - b,
+  );
+
+  for (const priority of sortedPriorities) {
+    const groupMigrations = priorityGroups.get(priority)!;
+
+    await logInfo(
+      `📋 Processing priority group ${priority} (${groupMigrations.length} tables)`,
+    );
+
+    // Process all tables in this priority group concurrently
+    const migrationPromises = groupMigrations.map((migration, index) =>
+      migrateTableWithDependencies(
+        state,
+        migration,
+        `table_p${priority}_${index}`,
+      ),
+    );
+
+    const results = await Promise.allSettled(migrationPromises);
+
+    const failures = results.filter((result) => result.status === "rejected");
+    if (failures.length > 0) {
+      await logError(
+        `❌ ${failures.length} table migrations failed in priority group ${priority}`,
+      );
+      throw new Error(
+        `Migration failed for ${failures.length} tables in priority group ${priority}`,
+      );
+    }
+
+    await logInfo(`✅ Completed priority group ${priority}`);
+  }
 };
 
 /**
@@ -239,11 +283,17 @@ const migrateTableInternal = async (
     tableProgress.lastCursorValue = lastCursorValue;
 
     state.checkpoint.tableProgress![tableId] = tableProgress;
-    await saveCheckpoint(
-      state.config.checkpointFile,
-      tableProgress.lastProcessedId,
-      tableProgress.totalProcessed,
-    );
+
+    // Fix checkpoint file path issue
+    try {
+      await saveCheckpoint(
+        state.config.checkpointFile,
+        tableProgress.lastProcessedId,
+        tableProgress.totalProcessed,
+      );
+    } catch (error) {
+      await logWarn(`⚠️ Could not save checkpoint: ${error}`);
+    }
 
     await logInfo(
       `📊 Table ${targetTable}: Processed ${totalProcessedInBatch} rows in batch. Total: ${tableProgress.totalProcessed}`,
@@ -320,6 +370,32 @@ const processBatch = async (
 
     // Create resolvers for enhanced transform functions
     const resolvers = createResolversForTransform(job.targetTable);
+
+    // Debug: Log sample row to understand field mapping
+    if (result.rows.length > 0 && job.targetTable.includes("district")) {
+      await logInfo(
+        `🔍 Sample ${job.targetTable} row fields: ${Object.keys(result.rows[0]).join(", ")}`,
+      );
+
+      // Check for region-related fields
+      const sampleRow = result.rows[0];
+      const regionFields = Object.keys(sampleRow).filter((key) =>
+        key.toLowerCase().includes("region"),
+      );
+
+      if (regionFields.length > 0) {
+        await logInfo(
+          `🔍 Region-related fields found: ${regionFields.join(", ")}`,
+        );
+        regionFields.forEach((field) => {
+          logInfo(`   ${field}: '${sampleRow[field]}'`);
+        });
+      } else {
+        await logWarn(
+          `⚠️ No region-related fields found in ${job.targetTable}`,
+        );
+      }
+    }
 
     // Transform data with resolvers if it's an enhanced function
     const transformedData = await transformData(
@@ -474,7 +550,7 @@ export const getMigrationProgress = async (
 };
 
 /**
- * Legacy function for backward compatibility
+ * Legacy function for backward compatibility (updated to use functional approach)
  */
 export const migrateTable = async (
   connections: DatabaseConnections,

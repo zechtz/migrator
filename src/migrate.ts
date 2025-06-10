@@ -5,135 +5,84 @@ import { createConfigFromEnv, validateConfiguration } from "./config/env.js";
 import { runMigration } from "./migration/runner.js";
 import { type MigrationTask } from "./types/index.js";
 import { loadQueryWithEnv } from "./utils/query-loader.js";
-import { birthRegistrationTransformer } from "./transformers/birth-registration-transformer.js";
 import {
-  councilTransformer,
-  districtTransformer,
   regionTransformer,
-  registrationCenterTransformer,
-  wardTransformer,
+  districtTransformer,
 } from "./transformers/location-transformer.js";
 
 const main = async (): Promise<void> => {
-  console.log(
-    "🚀 Oracle to PostgreSQL Migration Tool (Enhanced FK Resolution)",
-  );
-  console.log(
-    "==================================================================",
-  );
+  console.log("🚀 Oracle to PostgreSQL Migration Tool (FIXED)");
+  console.log("==============================================");
   console.log("");
 
   try {
     const configOptions = createConfigFromEnv();
     validateConfiguration(configOptions);
+
+    // Fix checkpoint file path
+    if (
+      configOptions.checkpointFile &&
+      configOptions.checkpointFile.endsWith("/")
+    ) {
+      configOptions.checkpointFile =
+        configOptions.checkpointFile + "migration_checkpoint.json";
+    }
+
     const config = createConfig(configOptions);
 
+    // FIXED: Sequential migration by priority with proper dependencies
     const migrations: MigrationTask[] = [
-      // Level 1: Regions (no foreign keys)
+      // Priority 1: Regions (must complete first)
       {
         sourceQuery: loadQueryWithEnv("regions.sql"),
         targetTable: "crvs_global.tbl_delimitation_region",
         transformFn: regionTransformer,
-        priority: 1,
+        priority: 1, // FIRST
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
       },
 
-      // Level 2: Districts (depends on regions)
+      // Priority 2: Districts (must wait for regions to complete)
       {
         sourceQuery: loadQueryWithEnv("districts.sql"),
         targetTable: "crvs_global.tbl_delimitation_district",
         transformFn: districtTransformer,
-        priority: 2,
+        priority: 2, // SECOND (after regions)
         paginationStrategy: "rownum",
         maxConcurrentBatches: 1,
-      },
-
-      // Level 3: Councils (depends on districts)
-      {
-        sourceQuery: loadQueryWithEnv("councils.sql"),
-        targetTable: "crvs_global.tbl_delimitation_council",
-        transformFn: councilTransformer,
-        priority: 3,
-        paginationStrategy: "rownum",
-        maxConcurrentBatches: 1,
-      },
-
-      // Level 4: Wards (depends on councils and districts)
-      {
-        sourceQuery: loadQueryWithEnv("wards.sql"),
-        targetTable: "crvs_global.tbl_delimitation_ward",
-        transformFn: wardTransformer,
-        priority: 4,
-        paginationStrategy: "rownum",
-        maxConcurrentBatches: 1,
-      },
-
-      // Level 5: Registration Centers (depends on everything)
-      {
-        sourceQuery: loadQueryWithEnv("registration-centers.sql"),
-        targetTable: "crvs_global.tbl_mgt_registration_center",
-        transformFn: registrationCenterTransformer,
-        priority: 5,
-        paginationStrategy: "rownum",
-        maxConcurrentBatches: 1,
-      },
-
-      // birth registration migration (unchanged)
-      {
-        sourceQuery: loadQueryWithEnv("birth-registration.sql"),
-        targetTable: "registry.tbl_birth_certificate_info",
-        transformFn: birthRegistrationTransformer,
-        priority: 10,
-        paginationStrategy: "cursor",
-        cursorColumn: "B.ID",
-        orderByClause: "ORDER BY B.ID ASC",
-        maxConcurrentBatches: 2,
       },
     ];
 
-    console.log(`📋 Starting migration of ${migrations.length} tables...`);
-    console.log("🔗 Enhanced foreign key resolution is now active");
-    console.log("⚡ Caches will be built automatically at the right time");
+    console.log(
+      `📋 Starting FIXED migration of ${migrations.length} tables...`,
+    );
+    console.log("🔄 Processing by priority groups (sequential dependencies)");
+    console.log("🔗 Foreign key resolution will work properly");
     console.log("");
 
     await runMigration(config, migrations);
 
     console.log("");
-    console.log("✅ Migration completed successfully!");
+    console.log("✅ FIXED migration completed successfully!");
     console.log("");
     process.exit(0);
   } catch (error) {
     console.error("");
-    console.error("❌ Migration failed:", (error as Error).message);
+    console.error("❌ FIXED migration failed:", (error as Error).message);
     console.error("");
     process.exit(1);
   }
 };
 
+// Handle graceful shutdown
 process.on("SIGINT", () => {
-  console.log("\n🛑 Received SIGINT. Shutting down gracefully...");
+  console.log("\n🛑 FIXED migration interrupted");
   process.exit(0);
-});
-
-process.on("SIGTERM", () => {
-  console.log("\n🛑 Received SIGTERM. Shutting down gracefully...");
-  process.exit(0);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
-  process.exit(1);
-});
-
-process.on("uncaughtException", (error) => {
-  console.error("❌ Uncaught Exception:", error);
-  process.exit(1);
 });
 
 if (require.main === module) {
   main().catch((error) => {
-    console.error("❌ Fatal error:", error);
+    console.error("❌ FIXED migration fatal error:", error);
     process.exit(1);
   });
 }

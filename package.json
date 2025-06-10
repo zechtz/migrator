@@ -9,9 +9,6 @@
     "migrate": "npm run build && npm start",
     "migrate:dev": "tsx src/migrate.ts",
     "dev": "tsx src/migrate.ts",
-    "migrate:debug": "tsx src/migrate-debug.ts",
-    "test:fk-resolution": "tsx src/test-fk-resolution.ts",
-    "check:cache": "tsx src/check-cache.ts",
     "check-env": "tsx src/cli.ts check-env",
     "check-config": "tsx src/cli.ts check-config",
     "cli-help": "tsx src/cli.ts help",
@@ -23,7 +20,15 @@
     "test:coverage": "jest --coverage",
     "test:unit": "jest --testPathPattern=unit",
     "test:integration": "jest --testPathPattern=integration",
-    "test:e2e": "jest --testPathPattern=e2e"
+    "test:e2e": "jest --testPathPattern=e2e",
+    "check:fields": "tsx src/debug/field-checker.ts",
+    "migrate:fixed": "tsx src/migrate-fixed.ts",
+    "migrate:debug": "tsx src/migrate-debug.ts",
+    "test:fk-resolution": "tsx src/test-fk-resolution.ts",
+    "check:cache": "tsx src/check-cache.ts",
+    "clean:checkpoint": "rm -f migration_checkpoint.json",
+    "clean:logs": "rm -f migration.log",
+    "clean:all": "rm -f migration_checkpoint.json migration.log"
   },
   "dependencies": {
     "dotenv": "^16.3.1",
