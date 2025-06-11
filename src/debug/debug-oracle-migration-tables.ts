@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import oracledb from "oracledb";
 import { createConfig } from "../config/index.js";
 import { createConfigFromEnv } from "../config/env.js";
 import {
@@ -8,9 +9,9 @@ import {
 } from "../database/connections.js";
 import { logInfo, logError } from "../utils/logger.js";
 
-const debugOracleTables = async (): Promise<void> => {
-  console.log("🔍 Debug Oracle Tables - Registration Center Types");
-  console.log("================================================");
+const debugOracleAccess = async (): Promise<void> => {
+  console.log("🔍 Enhanced Oracle Database Debug");
+  console.log("===============================");
   console.log("");
 
   let connections = null;
@@ -20,100 +21,217 @@ const debugOracleTables = async (): Promise<void> => {
     const config = createConfig(configOptions);
     connections = await initializeConnections(config);
 
-    // Check for registration center type tables
-    await logInfo("🔍 Searching for registration center type tables...");
+    await logInfo("👤 Getting current user information...");
 
-    const searchQuery = `
-      SELECT TABLE_NAME, OWNER 
-      FROM ALL_TABLES 
-      WHERE UPPER(TABLE_NAME) LIKE '%REGISTRATION%'
-         OR UPPER(TABLE_NAME) LIKE '%CENTER%'
-         OR UPPER(TABLE_NAME) LIKE '%TYPE%'
-      ORDER BY OWNER, TABLE_NAME
+    const userInfoQuery = `
+      SELECT 
+        USER as current_user,
+        SYS_CONTEXT('USERENV', 'SESSION_USER') as session_user,
+        SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') as current_schema,
+        SYS_CONTEXT('USERENV', 'DB_NAME') as database_name
+      FROM DUAL
     `;
 
-    const searchResult = await connections.oracle.execute(searchQuery, [], {
-      outFormat: connections.oracle.constructor.OUT_FORMAT_OBJECT,
+    const userResult = await connections.oracle.execute(userInfoQuery, [], {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
     });
-
-    if (searchResult.rows && searchResult.rows.length > 0) {
-      await logInfo(`📋 Found ${searchResult.rows.length} related tables:`);
-      searchResult.rows.forEach((row: any) => {
-        logInfo(`   ${row.OWNER}.${row.TABLE_NAME}`);
-      });
-    } else {
-      await logError("❌ No related tables found!");
-    }
-
-    // Check specifically in CRVS schema
-    await logInfo("\n🔍 Checking CRVS schema tables...");
-
-    const crvsQuery = `
-      SELECT TABLE_NAME 
-      FROM ALL_TABLES 
-      WHERE OWNER = 'CRVS' 
-      ORDER BY TABLE_NAME
-    `;
-
-    const crvsResult = await connections.oracle.execute(crvsQuery, [], {
-      outFormat: connections.oracle.constructor.OUT_FORMAT_OBJECT,
-    });
-
-    if (crvsResult.rows && crvsResult.rows.length > 0) {
-      await logInfo(`📋 CRVS schema has ${crvsResult.rows.length} tables:`);
-      crvsResult.rows.forEach((row: any, index: number) => {
-        if (index < 20) {
-          // Show first 20 tables
-          logInfo(`   ${row.TABLE_NAME}`);
-        }
-      });
-      if (crvsResult.rows.length > 20) {
-        logInfo(`   ... and ${crvsResult.rows.length - 20} more tables`);
-      }
-    } else {
-      await logError("❌ No tables found in CRVS schema!");
-    }
-
-    // Try to find the exact table we need
-    await logInfo("\n🔍 Looking for exact registration center type table...");
-
-    const exactQuery = `
-      SELECT TABLE_NAME, OWNER, NUM_ROWS
-      FROM ALL_TABLES 
-      WHERE UPPER(TABLE_NAME) IN (
-        'REGISTRATION_CENTER_TYPE',
-        'REG_CENTER_TYPE', 
-        'REGCENTER_TYPE',
-        'REGISTRATION_CENTRE_TYPE'
-      )
-      ORDER BY OWNER, TABLE_NAME
-    `;
-
-    const exactResult = await connections.oracle.execute(exactQuery, [], {
-      outFormat: connections.oracle.constructor.OUT_FORMAT_OBJECT,
-    });
-
-    if (exactResult.rows && exactResult.rows.length > 0) {
-      await logInfo("✅ Found exact matches:");
-      exactResult.rows.forEach((row: any) => {
-        logInfo(
-          `   ${row.OWNER}.${row.TABLE_NAME} (${row.NUM_ROWS || "unknown"} rows)`,
-        );
-      });
-    } else {
-      await logError(
-        "❌ No exact matches found for registration center type table!",
-      );
-    }
-
-    // Check current user permissions
-    await logInfo("\n🔍 Checking current user and permissions...");
-
-    const userQuery = `SELECT USER FROM DUAL`;
-    const userResult = await connections.oracle.execute(userQuery);
 
     if (userResult.rows && userResult.rows.length > 0) {
-      await logInfo(`👤 Current Oracle user: ${userResult.rows[0][0]}`);
+      const userInfo = userResult.rows[0];
+      await logInfo(`   Current User: ${userInfo.CURRENT_USER}`);
+      await logInfo(`   Session User: ${userInfo.SESSION_USER}`);
+      await logInfo(`   Current Schema: ${userInfo.CURRENT_SCHEMA}`);
+      await logInfo(`   Database: ${userInfo.DATABASE_NAME}`);
+    }
+
+    await logInfo("\n🔍 Testing query output format...");
+
+    const testQuery = `SELECT 'TEST_VALUE' as TEST_COLUMN FROM DUAL`;
+    const testResult = await connections.oracle.execute(testQuery, [], {
+      outFormat: oracledb.OUT_FORMAT_OBJECT,
+    });
+
+    await logInfo(
+      `   Test result structure: ${JSON.stringify(testResult.rows[0], null, 2)}`,
+    );
+
+    await logInfo("\n📋 Checking tables accessible to DASHBOARD user...");
+
+    // Try different approaches to get table information
+    const queries = [
+      {
+        name: "USER_TABLES (owned by current user)",
+        query: "SELECT TABLE_NAME FROM USER_TABLES ORDER BY TABLE_NAME",
+      },
+      {
+        name: "ALL_TABLES (all accessible tables)",
+        query:
+          "SELECT TABLE_NAME, OWNER FROM ALL_TABLES ORDER BY OWNER, TABLE_NAME",
+      },
+      {
+        name: "CRVS tables specifically",
+        query:
+          "SELECT TABLE_NAME, OWNER FROM ALL_TABLES WHERE OWNER = 'CRVS' ORDER BY TABLE_NAME",
+      },
+      {
+        name: "All schemas with tables",
+        query: "SELECT DISTINCT OWNER FROM ALL_TABLES ORDER BY OWNER",
+      },
+    ];
+
+    for (const queryInfo of queries) {
+      try {
+        await logInfo(`\n🔍 Testing: ${queryInfo.name}`);
+
+        const result = await connections.oracle.execute(queryInfo.query, [], {
+          outFormat: oracledb.OUT_FORMAT_OBJECT,
+        });
+
+        if (result.rows && result.rows.length > 0) {
+          await logInfo(`   ✅ Found ${result.rows.length} results`);
+
+          // Show first few results with full structure
+          const sampleSize = Math.min(5, result.rows.length);
+          for (let i = 0; i < sampleSize; i++) {
+            const row = result.rows[i];
+            await logInfo(`   Row ${i + 1}: ${JSON.stringify(row)}`);
+          }
+
+          if (result.rows.length > sampleSize) {
+            await logInfo(
+              `   ... and ${result.rows.length - sampleSize} more rows`,
+            );
+          }
+        } else {
+          await logInfo(`   ❌ No results found`);
+        }
+      } catch (error) {
+        await logError(`   ❌ Query failed: ${error}`);
+      }
+    }
+
+    await logInfo("\n🎯 Searching for registration center type table...");
+
+    const registrationQueries = [
+      "SELECT TABLE_NAME, OWNER FROM ALL_TABLES WHERE UPPER(TABLE_NAME) LIKE '%REGISTRATION%CENTER%TYPE%'",
+      "SELECT TABLE_NAME, OWNER FROM ALL_TABLES WHERE UPPER(TABLE_NAME) LIKE '%REG%CENTER%TYPE%'",
+      "SELECT TABLE_NAME, OWNER FROM ALL_TABLES WHERE UPPER(TABLE_NAME) = 'REGISTRATION_CENTER_TYPE'",
+      "SELECT TABLE_NAME, OWNER FROM ALL_TABLES WHERE UPPER(TABLE_NAME) LIKE '%REGISTRATION%'",
+    ];
+
+    for (const query of registrationQueries) {
+      try {
+        const result = await connections.oracle.execute(query, [], {
+          outFormat: oracledb.OUT_FORMAT_OBJECT,
+        });
+
+        if (result.rows && result.rows.length > 0) {
+          await logInfo(`✅ Found ${result.rows.length} matching tables:`);
+          result.rows.forEach((row: any) => {
+            logInfo(`   ${row.OWNER}.${row.TABLE_NAME}`);
+          });
+        }
+      } catch (error) {
+        await logError(`Query failed: ${error}`);
+      }
+    }
+
+    await logInfo("\n🧪 Testing direct table access...");
+
+    const directQueries = [
+      "SELECT COUNT(*) as row_count FROM CRVS.REGISTRATION_CENTER_TYPE",
+      "SELECT * FROM CRVS.REGISTRATION_CENTER_TYPE WHERE ROWNUM <= 3",
+      "DESC CRVS.REGISTRATION_CENTER_TYPE", // This might not work in all Oracle versions
+    ];
+
+    for (const query of directQueries) {
+      try {
+        await logInfo(`\n   Testing: ${query}`);
+        const result = await connections.oracle.execute(query, [], {
+          outFormat: oracledb.OUT_FORMAT_OBJECT,
+        });
+
+        if (result.rows && result.rows.length > 0) {
+          await logInfo(`   ✅ Success! Results:`);
+          result.rows.forEach((row: any, index: number) => {
+            logInfo(`     Row ${index + 1}: ${JSON.stringify(row)}`);
+          });
+        } else {
+          await logInfo(`   ⚠️ Query executed but no rows returned`);
+        }
+      } catch (error) {
+        await logError(`   ❌ Direct access failed: ${error}`);
+      }
+    }
+
+    await logInfo("\n📊 Getting column information...");
+
+    try {
+      const columnsQuery = `
+        SELECT 
+          COLUMN_NAME, 
+          DATA_TYPE, 
+          DATA_LENGTH, 
+          NULLABLE,
+          DATA_DEFAULT
+        FROM ALL_TAB_COLUMNS 
+        WHERE OWNER = 'CRVS' 
+        AND TABLE_NAME = 'REGISTRATION_CENTER_TYPE'
+        ORDER BY COLUMN_ID
+      `;
+
+      const columnsResult = await connections.oracle.execute(columnsQuery, [], {
+        outFormat: oracledb.OUT_FORMAT_OBJECT,
+      });
+
+      if (columnsResult.rows && columnsResult.rows.length > 0) {
+        await logInfo(`✅ Table structure for CRVS.REGISTRATION_CENTER_TYPE:`);
+        columnsResult.rows.forEach((row: any) => {
+          logInfo(
+            `   ${row.COLUMN_NAME}: ${row.DATA_TYPE}(${row.DATA_LENGTH}) ${row.NULLABLE === "Y" ? "NULL" : "NOT NULL"}`,
+          );
+        });
+      } else {
+        await logError(`❌ Could not get column information`);
+      }
+    } catch (error) {
+      await logError(`❌ Column query failed: ${error}`);
+    }
+
+    await logInfo("\n🔒 Checking user privileges...");
+
+    try {
+      const privQuery = `
+        SELECT 
+          GRANTEE,
+          OWNER,
+          TABLE_NAME,
+          PRIVILEGE,
+          GRANTABLE
+        FROM ALL_TAB_PRIVS 
+        WHERE GRANTEE = USER 
+        AND OWNER = 'CRVS'
+        AND TABLE_NAME = 'REGISTRATION_CENTER_TYPE'
+      `;
+
+      const privResult = await connections.oracle.execute(privQuery, [], {
+        outFormat: oracledb.OUT_FORMAT_OBJECT,
+      });
+
+      if (privResult.rows && privResult.rows.length > 0) {
+        await logInfo(`✅ Privileges on CRVS.REGISTRATION_CENTER_TYPE:`);
+        privResult.rows.forEach((row: any) => {
+          logInfo(
+            `   ${row.PRIVILEGE} (${row.GRANTABLE === "YES" ? "grantable" : "not grantable"})`,
+          );
+        });
+      } else {
+        await logInfo(
+          `⚠️ No explicit privileges found (may have access through role)`,
+        );
+      }
+    } catch (error) {
+      await logError(`❌ Privilege check failed: ${error}`);
     }
   } catch (error) {
     await logError(`❌ Debug failed: ${error}`);
@@ -126,7 +244,7 @@ const debugOracleTables = async (): Promise<void> => {
 };
 
 if (require.main === module) {
-  debugOracleTables().catch((error) => {
+  debugOracleAccess().catch((error) => {
     console.error("❌ Debug fatal error:", error);
     process.exit(1);
   });

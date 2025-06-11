@@ -2,7 +2,6 @@ import { Pool } from "pg";
 import { logInfo, logError, logWarn } from "./logger.js";
 import { CacheConfig } from "../types//index.js";
 
-// Global mapping cache with debugging
 const mappingCache = new Map<string, Map<string, number>>();
 
 export type ForeignKeyResolver = (sourceCode: string) => Promise<number | null>;
@@ -105,7 +104,7 @@ const validateTableForCache = async (
 };
 
 /**
- * Enhanced cache building with better error handling and logging
+ *  cache building with better error handling and logging
  */
 export const buildMappingCacheEnhanced = async (
   pgPool: Pool,
@@ -186,7 +185,7 @@ export const buildMappingCacheEnhanced = async (
 };
 
 /**
- * Enhanced foreign key resolver with debugging
+ * foreign key resolver with debugging
  */
 export const createForeignKeyResolverEnhanced = (
   tableName: string,
@@ -371,6 +370,96 @@ export const debugCacheContents = async (
       await logError(`❌ Error testing district cache: ${error}`);
     }
   }
+};
+
+/**
+ * Enhanced cache configurations for birth registration
+ */
+export const BIRTH_REGISTRATION_CACHE_CONFIGS: Record<string, CacheConfig> = {
+  // Location hierarchy
+  "crvs_global.tbl_delimitation_region": {
+    tableName: "crvs_global.tbl_delimitation_region",
+    codeCol: "code",
+    idCol: "id",
+  },
+  "crvs_global.tbl_delimitation_district": {
+    tableName: "crvs_global.tbl_delimitation_district",
+    codeCol: "code",
+    idCol: "id",
+    dependsOn: ["crvs_global.tbl_delimitation_region"],
+  },
+  "crvs_global.tbl_delimitation_ward": {
+    tableName: "crvs_global.tbl_delimitation_ward",
+    codeCol: "code",
+    idCol: "ward_id",
+    dependsOn: ["crvs_global.tbl_delimitation_council"],
+  },
+
+  // Countries
+  "crvs_global.tbl_global_country": {
+    tableName: "crvs_global.tbl_global_country",
+    codeCol: "country_code",
+    idCol: "id",
+  },
+
+  // Health facilities
+  "crvs_global.tbl_mgt_health_facility": {
+    tableName: "crvs_global.tbl_mgt_health_facility",
+    codeCol: "code",
+    idCol: "health_facility_id",
+    dependsOn: ["crvs_global.tbl_delimitation_council"],
+  },
+
+  // Place of birth lookup
+  "crvs_global.tbl_global_place_of_birth": {
+    tableName: "crvs_global.tbl_global_place_of_birth",
+    codeCol: "code",
+    idCol: "id",
+  },
+};
+
+/**
+ * Enhanced resolvers configuration for birth registration
+ */
+export const BIRTH_REGISTRATION_RESOLVERS = [
+  {
+    name: "resolveRegionId",
+    tableName: "crvs_global.tbl_delimitation_region",
+    codeColumn: "code",
+  },
+  {
+    name: "resolveDistrictId",
+    tableName: "crvs_global.tbl_delimitation_district",
+    codeColumn: "code",
+  },
+  {
+    name: "resolveWardId",
+    tableName: "crvs_global.tbl_delimitation_ward",
+    codeColumn: "code",
+  },
+  {
+    name: "resolveCountryId",
+    tableName: "crvs_global.tbl_global_country",
+    codeColumn: "country_code",
+  },
+  {
+    name: "resolveHealthFacilityId",
+    tableName: "crvs_global.tbl_mgt_health_facility",
+    codeColumn: "code",
+  },
+  {
+    name: "resolvePlaceOfBirthId",
+    tableName: "crvs_global.tbl_global_place_of_birth",
+    codeColumn: "code",
+  },
+];
+
+/**
+ * Create resolvers specifically for birth registration migration
+ */
+
+export const createBirthRegistrationResolvers = () => {
+  return createResolversEnhanced(BIRTH_REGISTRATION_RESOLVERS);
 };
 
 export const buildMappingCache = buildMappingCacheEnhanced;

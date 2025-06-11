@@ -1,12 +1,7 @@
--- Query to fetch countries from Oracle CRVS.COUNTRY table
-
 SELECT 
   ID,
   NAME,
   CODE,
   INTL_CODE
 FROM CRVS.COUNTRY 
-WHERE CODE IS NOT NULL
-  AND LENGTH(TRIM(CODE)) > 0
-  AND LENGTH(TRIM(CODE)) <= 3
 ORDER BY ID

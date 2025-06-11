@@ -1,20 +1,11 @@
 import { safeString, safeInteger, safeBoolean } from "../utils/data-helpers.js";
 import { EnhancedTransformFunction } from "../types/index.js";
 
-/**
- * Fixed district transformer - uses REGION_ID for direct assignment
- */
 export const districtTransformer: EnhancedTransformFunction = async (
   row,
   resolvers,
 ) => {
-  // For districts, we can either use direct assignment or resolve region code
-  // Option 1: Direct assignment if REGION_ID is already the correct FK
   const regionId = safeInteger(row.REGION_ID);
-  // Option 2: If you need to resolve via code, use this instead:
-  // const regionId = resolvers?.resolveRegionId
-  //   ? await resolvers.resolveRegionId(row.REGION_CODE)
-  //   : null;
 
   return {
     code: safeString(row.CODE),
@@ -103,7 +94,7 @@ export const registrationCenterTypeTransformer = (row: any) => {
 };
 
 /**
- * Updated Health facility transformer - now includes COUNCIL_NAME
+ * Health facility transformer - matches actual PostgreSQL table schema
  */
 export const healthFacilityTransformer: EnhancedTransformFunction = async (
   row,
@@ -114,17 +105,32 @@ export const healthFacilityTransformer: EnhancedTransformFunction = async (
     : null;
 
   return {
-    health_facility_id: safeInteger(row.ID),
+    health_facility_name: safeString(row.NAME),
+    health_facility_code: safeString(row.CODE),
+    health_facility_type_id: null,
+    is_active: safeBoolean(row.ACTIVE),
+    created_date: new Date(),
+    created_by_id: null,
+    updated_date: new Date(),
+    updated_by_id: null,
+
+    active: row.ACTIVE === 1 ? "Y" : "N",
     code: safeString(row.CODE),
-    name: safeString(row.NAME),
-    post_code: safeString(row.POST_CODE),
-    active: safeBoolean(row.ACTIVE),
-    uuid: safeString(row.ID?.toString()),
-    council_id: councilId,
-    council_name: safeString(row.COUNCIL_NAME),
     created_at: new Date(),
-    updated_at: new Date(),
+    created_by: null,
+    deactivated_at: null,
+    deactivated_by: null,
     deleted: false,
+    deleted_at: null,
+    name: safeString(row.NAME),
+    post_code: safeInteger(row.POST_CODE),
+    updated_at: new Date(),
+    updated_by: null,
+    uuid: safeString(row.ID?.toString()),
+
+    // Foreign keys
+    council_id: councilId,
+    council_hierarchy_id: null,
   };
 };
 
@@ -161,6 +167,7 @@ export const registrationCenterTransformer: EnhancedTransformFunction = async (
     : null;
 
   return {
+    mgt_registration_center_id: safeInteger(row.ID),
     code: safeString(row.CODE),
     center_code: safeString(row.CODE),
     name: safeString(row.NAME),
@@ -169,7 +176,6 @@ export const registrationCenterTransformer: EnhancedTransformFunction = async (
     active: safeBoolean(row.ACTIVE),
     head_office: safeString(row.HEAD_OFFICE),
     is_head_office: safeBoolean(row.HEAD_OFFICE === "Y"),
-    reg_type: safeString(row.REG_TYPE),
     uuid: safeString(row.ID?.toString()),
 
     // Foreign key assignments
