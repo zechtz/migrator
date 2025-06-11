@@ -14,8 +14,8 @@ import {
   registrationCenterTransformer,
   registrationCenterTypeTransformer,
 } from "./transformers/location-transformer.js";
-import { countryTransformer } from "transformers/country-transformer.js";
-import { birthRegistrationTransformer } from "transformers/birth-registration-transformer.js";
+import { countryTransformer } from "./transformers/country-transformer.js";
+import { birthRegistrationTransformer } from "./transformers/birth-registration-transformer.js";
 
 const main = async (): Promise<void> => {
   console.log("🚀 Oracle to PostgreSQL Migration Tool (FIXED)");
